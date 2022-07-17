@@ -15,7 +15,7 @@ pub struct Config {
 }
 
 impl Config {
-	pub fn new(mut args: impl Iterator<Item = String>) -> Result<Config, &'static str> {
+	pub fn new(mut args: impl Iterator<Item = String>) -> Result<Self, &'static str> {
 		args.next();
 
 		let action = match args.next() {
@@ -48,7 +48,7 @@ impl Config {
 				dir.join(filename)
 			};
 
-			if !filename.exists() {
+			if action != Action::Paste && !filename.exists() {
 				return Err("The given file does not exist!");
 			}
 
@@ -77,7 +77,6 @@ pub fn clipboard() -> Result<PathBuf, &'static str> {
 }
 
 pub fn run(config: Config) -> Result<(), &'static str> {
-
 	match config.action {
 		Action::Copy | Action::Cut => {
 			let clipboard = clipboard()?;
@@ -92,7 +91,52 @@ pub fn run(config: Config) -> Result<(), &'static str> {
 				eprintln!("Couldn't write to the clipboard!");
 			}
 		},
-		Action::Paste => {}
+		Action::Paste => {
+			let lines = match fs::read_to_string(clipboard()?) {
+				Ok(contents) => contents,
+				Err(_) => {
+					return Err("Couldn't read from clipboard!");
+				}
+			};
+
+			let mut lines = lines.lines();
+
+			let delete_source = match lines.next() {
+				Some(mode) => {
+					match mode {
+						"copy" => false,
+						"cut" => true,
+						_ => {
+							return Err("Invalid data stored in clipboard!");
+						}
+					}
+				},
+				None => {
+					return Err("Clipboard is empty!");
+				}
+			};
+
+			let path = match lines.next() {
+				Some(line) => PathBuf::from(line),
+				None => {
+					return Err("Incomplete data stored in clipboard!");
+				}
+			};
+
+			if path.is_dir() {
+				todo!("Implement support for pasting directories.");
+			}
+
+			if fs::copy(&path, config.filename).is_err() {
+				return Err("Couldn't copy the file referenced by the clipboard. Make sure the file has not been deleted nor moved.");
+			}
+
+			if delete_source {
+				if fs::remove_file(&path).is_err() {
+					return Err("The source file could not be deleted. Check if clip has the necessary permissions to delete the file.");
+				}
+			}
+		}
 	}
 
 	Ok(())
