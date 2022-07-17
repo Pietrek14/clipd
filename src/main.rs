@@ -10,5 +10,9 @@ fn main() {
         process::exit(1);
     });
 
-    clip::run(config);
+    if let Err(error) = clip::run(config) {
+        eprintln!("Error occured while running: {}", error);
+
+        process::exit(1);
+    }
 }
