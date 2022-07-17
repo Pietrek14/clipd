@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::env::current_dir;
+use std::env::{current_dir, current_exe};
 use std::fs;
 
 #[derive(PartialEq, Eq, Debug)]
@@ -59,19 +59,28 @@ impl Config {
 	}
 }
 
-pub fn run(config: Config) -> Result<(), &'static str> {
+pub fn clipboard() -> Result<PathBuf, &'static str> {
 	let clipboard_filename = "clipboard";
+
+	let mut dir = match current_exe() {
+		Ok(exe) => exe,
+		Err(_) => {
+			return Err("Couldn't find the clip executable!");
+		}
+	};
+
+	dir.pop();
+
+	let clipboard = dir.join(clipboard_filename);
+
+	Ok(clipboard)
+}
+
+pub fn run(config: Config) -> Result<(), &'static str> {
 
 	match config.action {
 		Action::Copy | Action::Cut => {
-			let dir = match current_dir() {
-				Ok(value) => value,
-				Err(_) => {
-					return Err("The working directory is invalid!");
-				}
-			};
-
-			let clipboard = dir.join(clipboard_filename);
+			let clipboard = clipboard()?;
 
 			let contents = format!("{}\n{}", match config.action {
 				Action::Copy => "copy",
