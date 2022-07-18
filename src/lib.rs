@@ -2,6 +2,8 @@ use std::path::PathBuf;
 use std::env::{current_dir, current_exe};
 use std::fs;
 
+use fs_extra::dir::CopyOptions;
+
 #[derive(PartialEq, Eq, Debug)]
 pub enum Action {
 	Copy,
@@ -48,10 +50,6 @@ impl Config {
 				dir.join(filename)
 			};
 
-			if action != Action::Paste && !filename.exists() {
-				return Err("The given file does not exist!");
-			}
-
 			Ok(Config {action, filename})
 		} else {
 			Err("No command given!")
@@ -65,7 +63,7 @@ pub fn clipboard() -> Result<PathBuf, &'static str> {
 	let mut dir = match current_exe() {
 		Ok(exe) => exe,
 		Err(_) => {
-			return Err("Couldn't find the clip executable!");
+			return Err("Couldn't find the clipd executable!");
 		}
 	};
 
@@ -79,6 +77,10 @@ pub fn clipboard() -> Result<PathBuf, &'static str> {
 pub fn run(config: Config) -> Result<(), &'static str> {
 	match config.action {
 		Action::Copy | Action::Cut => {
+			if !config.filename.exists() {
+				return Err("The given file does not exist!");
+			}
+
 			let clipboard = clipboard()?;
 
 			let contents = format!("{}\n{}", match config.action {
@@ -92,6 +94,12 @@ pub fn run(config: Config) -> Result<(), &'static str> {
 			}
 		},
 		Action::Paste => {
+			if !config.filename.exists() {
+				if fs::create_dir_all(&config.filename).is_err() {
+					return Err("Couldn't create the target directory.");
+				}
+			}
+
 			let lines = match fs::read_to_string(clipboard()?) {
 				Ok(contents) => contents,
 				Err(_) => {
@@ -116,28 +124,47 @@ pub fn run(config: Config) -> Result<(), &'static str> {
 				}
 			};
 
-			let path = match lines.next() {
+			let source = match lines.next() {
 				Some(line) => PathBuf::from(line),
 				None => {
 					return Err("Incomplete data stored in clipboard!");
 				}
 			};
 
-			if path.is_dir() {
-				todo!("Implement support for pasting directories.");
-			}
+			// let items = if source.is_dir() {
+			// 	if let Ok(dir_contents) = fs::read_dir(source) {
 
-			if fs::copy(&path, config.filename).is_err() {
-				return Err("Couldn't copy the file referenced by the clipboard. Make sure the file has not been deleted nor moved.");
-			}
+			// 		let mut sources = Vec::new();
 
+			// 		for item in dir_contents {
+			// 			if let Ok(item) = item {
+			// 				sources.push(item.path());
+			// 			} else {
+			// 				return Err("An intermittent IO error occured!");
+			// 			}
+			// 		};
+
+			// 		sources
+			// 	} else {
+			// 		return Err("Couldn't copy the folder referenced by the clipboard. Make sure the folder has not been deleted nor moved.");
+			// 	}
+			// } else {
+			// 	vec![source]
+			// };
+			
+			// TODO: add a progress bar
 			if delete_source {
-				if fs::remove_file(&path).is_err() {
-					return Err("The source file could not be deleted. Check if clip has the necessary permissions to delete the file.");
+				if fs_extra::move_items(&[source], config.filename, &CopyOptions::new()).is_err() {
+					// TODO: Improve error messages, especially here
+					return Err("Couldn't move the items!");
 				}
 
 				if fs::write(clipboard()?, "").is_err() {
 					return Err("The clipboard could not be cleared.");
+				}
+			} else {
+				if fs_extra::copy_items(&[source], config.filename, &CopyOptions::new()).is_err() {
+					return Err("Couldn't copy the items!");
 				}
 			}
 		}
