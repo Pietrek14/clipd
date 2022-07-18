@@ -1,6 +1,6 @@
 # clipd
 
-Clipd is a simple cmd tool for copying, cutting and pasting files (support for directories is in progress).
+Clipd is a simple cmd tool for copying, cutting and pasting files and folders.
 
 # Usage
 
