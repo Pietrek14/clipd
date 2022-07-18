@@ -135,6 +135,10 @@ pub fn run(config: Config) -> Result<(), &'static str> {
 				if fs::remove_file(&path).is_err() {
 					return Err("The source file could not be deleted. Check if clip has the necessary permissions to delete the file.");
 				}
+
+				if fs::write(clipboard()?, "").is_err() {
+					return Err("The clipboard could not be cleared.");
+				}
 			}
 		}
 	}
