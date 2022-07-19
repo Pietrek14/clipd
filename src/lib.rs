@@ -77,24 +77,12 @@ pub fn clipboard() -> Result<PathBuf, &'static str> {
 
 pub fn sensible_error_message(e: Error) -> &'static str {
 	match e.kind {
-		ErrorKind::AlreadyExists => {
-			"The target directory already contains an element of such name."
-		},
-		ErrorKind::NotFound => {
-			"Make sure the source has not been moved nor deleted."
-		},
-		ErrorKind::PermissionDenied => {
-			"Clipd doesn't have permissions necessary to perform this operation."
-		},
-		ErrorKind::Interrupted => {
-			return "The operation has been interrupted. Try performing it again.";
-		},
-		ErrorKind::InvalidFolder => {
-			return "The source contains a folder with an invalid name";
-		},
-		ErrorKind::InvalidFileName => {
-			return "The source contains a file with an invalid name";
-		},
+		ErrorKind::AlreadyExists => "The target directory already contains an element of such name.",
+		ErrorKind::NotFound => "Make sure the source has not been moved nor deleted.",
+		ErrorKind::PermissionDenied => "Clipd doesn't have permissions necessary to perform this operation.",
+		ErrorKind::Interrupted => "The operation has been interrupted. Try performing it again.",
+		ErrorKind::InvalidFolder => "The source contains a folder with an invalid name",
+		ErrorKind::InvalidFileName => "The source contains a file with an invalid name",
 		_ => "An unknown error occured."
 	}
 	
@@ -120,10 +108,8 @@ pub fn run(config: Config) -> Result<(), &'static str> {
 			}
 		},
 		Action::Paste => {
-			if !config.filename.exists() {
-				if fs::create_dir_all(&config.filename).is_err() {
-					return Err("Couldn't create the target directory.");
-				}
+			if !config.filename.exists() && fs::create_dir_all(&config.filename).is_err() {
+				return Err("Couldn't create the target directory.");
 			}
 
 			let lines = match fs::read_to_string(clipboard()?) {
