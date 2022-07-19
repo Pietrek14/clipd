@@ -3,6 +3,7 @@ use std::env::{current_dir, current_exe};
 use std::fs;
 
 use fs_extra::dir::CopyOptions;
+use fs_extra::error::{ErrorKind, Error};
 
 #[derive(PartialEq, Eq, Debug)]
 pub enum Action {
@@ -74,6 +75,31 @@ pub fn clipboard() -> Result<PathBuf, &'static str> {
 	Ok(clipboard)
 }
 
+pub fn sensible_error_message(e: Error) -> &'static str {
+	match e.kind {
+		ErrorKind::AlreadyExists => {
+			"The target directory already contains an element of such name."
+		},
+		ErrorKind::NotFound => {
+			"Make sure the source has not been moved nor deleted."
+		},
+		ErrorKind::PermissionDenied => {
+			"Clipd doesn't have permissions necessary to perform this operation."
+		},
+		ErrorKind::Interrupted => {
+			return "The operation has been interrupted. Try performing it again.";
+		},
+		ErrorKind::InvalidFolder => {
+			return "The source contains a folder with an invalid name";
+		},
+		ErrorKind::InvalidFileName => {
+			return "The source contains a file with an invalid name";
+		},
+		_ => "An unknown error occured."
+	}
+	
+}
+
 pub fn run(config: Config) -> Result<(), &'static str> {
 	match config.action {
 		Action::Copy | Action::Cut => {
@@ -140,20 +166,15 @@ pub fn run(config: Config) -> Result<(), &'static str> {
 			};
 
 			if delete_source {
-				if fs_extra::move_items_with_progress(&[source], config.filename, &CopyOptions::new(), progress_bar_update).is_err() {
-					// TODO: Improve error messages, especially here
-					return Err("Couldn't move the items!");
+				if let Err(e) = fs_extra::move_items_with_progress(&[source], config.filename, &CopyOptions::new(), progress_bar_update) {
+					return Err(sensible_error_message(e));
 				}
 
 				if fs::write(clipboard()?, "").is_err() {
 					return Err("The clipboard could not be cleared.");
 				}
-			} else {
-				if let Err(e) = fs_extra::copy_items_with_progress(&[source], config.filename, &CopyOptions::new(), progress_bar_update) {
-					eprintln!("{}", e);
-
-					return Err("Couldn't copy the items!");
-				}
+			} else if let Err(e) = fs_extra::copy_items_with_progress(&[source], config.filename, &CopyOptions::new(), progress_bar_update) {
+				return Err(sensible_error_message(e));
 			}
 		}
 	}
