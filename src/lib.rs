@@ -131,30 +131,16 @@ pub fn run(config: Config) -> Result<(), &'static str> {
 				}
 			};
 
-			// let items = if source.is_dir() {
-			// 	if let Ok(dir_contents) = fs::read_dir(source) {
+			let progress_bar = indicatif::ProgressBar::new(100);
 
-			// 		let mut sources = Vec::new();
+			let progress_bar_update = |transit_process: fs_extra::TransitProcess| {
+				progress_bar.set_position(100 * transit_process.copied_bytes / transit_process.total_bytes);
 
-			// 		for item in dir_contents {
-			// 			if let Ok(item) = item {
-			// 				sources.push(item.path());
-			// 			} else {
-			// 				return Err("An intermittent IO error occured!");
-			// 			}
-			// 		};
+				fs_extra::dir::TransitProcessResult::ContinueOrAbort
+			};
 
-			// 		sources
-			// 	} else {
-			// 		return Err("Couldn't copy the folder referenced by the clipboard. Make sure the folder has not been deleted nor moved.");
-			// 	}
-			// } else {
-			// 	vec![source]
-			// };
-			
-			// TODO: add a progress bar
 			if delete_source {
-				if fs_extra::move_items(&[source], config.filename, &CopyOptions::new()).is_err() {
+				if fs_extra::move_items_with_progress(&[source], config.filename, &CopyOptions::new(), progress_bar_update).is_err() {
 					// TODO: Improve error messages, especially here
 					return Err("Couldn't move the items!");
 				}
@@ -163,7 +149,9 @@ pub fn run(config: Config) -> Result<(), &'static str> {
 					return Err("The clipboard could not be cleared.");
 				}
 			} else {
-				if fs_extra::copy_items(&[source], config.filename, &CopyOptions::new()).is_err() {
+				if let Err(e) = fs_extra::copy_items_with_progress(&[source], config.filename, &CopyOptions::new(), progress_bar_update) {
+					eprintln!("{}", e);
+
 					return Err("Couldn't copy the items!");
 				}
 			}
